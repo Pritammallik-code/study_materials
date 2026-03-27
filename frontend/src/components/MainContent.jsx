@@ -34,7 +34,8 @@ export default function MainContent({
 
     const getFileUrl = (id) => {
         const token = localStorage.getItem('token');
-        return `http://localhost:5000/api/materials/${id}/file${token ? `?token=${token}` : ''}`;
+        const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        return `${baseUrl}/api/materials/${id}/file${token ? `?token=${token}` : ''}`;
     };
 
     const addMutation = useMutation({
