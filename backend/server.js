@@ -2,6 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const logger = require('./utils/logger');
+const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { generalLimiter } = require('./middleware/rateLimiter');
 
 const authRoutes = require('./routes/auth');
 const hierarchyRoutes = require('./routes/hierarchy');
@@ -12,12 +15,31 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// CORS configuration with security improvements
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:5173', 'http://localhost:3000'];
+
 app.use(cors({
-    origin: '*',
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, Postman, etc.)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
+
 app.use(express.json());
+
+// Apply rate limiting to all routes
+app.use('/api/', generalLimiter);
 
 connectDB();
 
@@ -31,4 +53,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => res.send('Study Materials API is running...'));
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
+
+app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
