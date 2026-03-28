@@ -30,7 +30,7 @@ export default function MainContent({
     const queryClient = useQueryClient();
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
-    const [formData, setFormData] = useState({ title: '', type: 'TEXT', content: '', tags: '' });
+    const [formData, setFormData] = useState({ title: '', text: '', code: '', link: '', tags: '' });
     const [tagFilter, setTagFilter] = useState('');
     const [deletingMaterial, setDeletingMaterial] = useState(null);
     const [isFetchingTitle, setIsFetchingTitle] = useState(false);
@@ -42,10 +42,10 @@ export default function MainContent({
     );
 
     const handleFetchTitle = async () => {
-        if (!formData.content || formData.type !== 'LINK') return;
+        if (!formData.link) return;
         setIsFetchingTitle(true);
         try {
-            const data = await fetchUrlTitle(formData.content);
+            const data = await fetchUrlTitle(formData.link);
             if (data.title) {
                 setFormData(prev => ({ ...prev, title: data.title }));
             }
@@ -189,19 +189,29 @@ export default function MainContent({
 
     const cancelForm = () => { 
         setEditingId(null); 
-        setFormData({ title: '', type: 'TEXT', content: '', tags: '' }); 
+        setFormData({ title: '', text: '', code: '', link: '', tags: '' }); 
         setShowAddForm(false); 
     };
 
-    const startEdit = (m) => { 
-        setEditingId(m._id); 
+    const startEdit = (m) => {
+        setEditingId(m._id);
+        
+        const unifiedData = { ...m, text: m.text || '', code: m.code || '', link: m.link || '' };
+        
+        // Backwards compatibility for legacy materials that strictly relied on type/content
+        if (m.type === 'TEXT' && m.content) unifiedData.text = m.content;
+        if (m.type === 'CODE' && m.content) unifiedData.code = m.content;
+        if (m.type === 'LINK' && m.content) unifiedData.link = m.content;
+
         setFormData({ 
-            title: m.title, 
-            type: m.type, 
-            content: m.content, 
-            tags: (m.tags || []).join(', ') 
-        }); 
-        setShowAddForm(true); 
+            title: unifiedData.title, 
+            text: unifiedData.text, 
+            code: unifiedData.code, 
+            link: unifiedData.link, 
+            tags: (unifiedData.tags || []).join(', ') 
+        });
+        setShowAddForm(true);
+        window.scrollTo(0, 0);
     };
 
     const moveUp = (i) => { 
@@ -245,21 +255,25 @@ export default function MainContent({
     const handleFormSubmit = (e) => {
         e.preventDefault();
         
-        // Use a JSON object instead of FormData
-        const data = {
+        if (!formData.text && !formData.code && !formData.link) {
+            alert('Please provide at least one of: Notes, Code Snippet, or a URL Link.');
+            return;
+        }
+
+        const payload = { 
             title: formData.title,
-            type: formData.type,
-            // Only split if tags is a string, preventing errors if it's already an array somehow
-            tags: typeof formData.tags === 'string' ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+            text: formData.text || '',
+            code: formData.code || '',
+            link: formData.link || '',
+            tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
             nodeId: activeNode._id,
             nodeType: activeNode.type || 'TOPIC',
-            content: formData.content
         };
 
         if (editingId) {
-            editMutation.mutate({ id: editingId, data });
+            editMutation.mutate({ id: editingId, data: payload });
         } else {
-            addMutation.mutate(data);
+            addMutation.mutate(payload);
         }
     };
 
@@ -329,73 +343,37 @@ export default function MainContent({
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div>
-                            <label style={labelStyle}>Material Title</label>
-                            <input 
-                                className="input-field" 
-                                placeholder="e.g. Chapter 1 Summary"
-                                value={formData.title} 
-                                onChange={e => setFormData({ ...formData, title: e.target.value })} 
-                                required 
-                            />
-                        </div>
-                        <div>
-                            <label style={labelStyle}>Content Type</label>
-                            <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-surface-hover)', padding: '0.4rem', borderRadius: 'var(--radius-md)', width: 'fit-content' }}>
-                                {[
-                                    { value: 'TEXT', icon: FileText, label: 'Note' },
-                                    { value: 'LINK', icon: LinkIcon, label: 'Link' },
-                                    { value: 'CODE', icon: Code, label: 'Code' }
-                                ].map(t => (
-                                    <button
-                                        key={t.value}
-                                        type="button"
-                                        onClick={() => {
-                                            if (formData.type !== t.value) {
-                                                setFormData({ ...formData, type: t.value, content: '' });
-                                            }
-                                        }}
-                                        style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            gap: '0.5rem', 
-                                            padding: '0.5rem 1rem', 
-                                            borderRadius: '6px', 
-                                            fontSize: '0.85rem',
-                                            fontWeight: 600,
-                                            transition: 'all 0.2s ease',
-                                            background: formData.type === t.value ? 'var(--text-primary)' : 'transparent',
-                                            color: formData.type === t.value ? 'var(--bg-surface)' : 'var(--text-secondary)',
-                                            boxShadow: formData.type === t.value ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                                            border: 'none',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        <t.icon size={14} />
-                                        {t.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                    <div>
+                        <label style={labelStyle}>Material Title</label>
+                        <input 
+                            className="input-field" 
+                            placeholder="e.g. Chapter 1 Summary"
+                            value={formData.title} 
+                            onChange={e => setFormData({ ...formData, title: e.target.value })} 
+                            required 
+                        />
                     </div>
                     
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 500 }}>{formData.type === 'LINK' ? 'Paste URL' : 'Content Details'}</label>
-                            {formData.type === 'LINK' && (
-                                <button type="button" onClick={handleFetchTitle} disabled={!formData.content || isFetchingTitle} style={{ fontSize: '0.75rem', color: 'var(--accent-color)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem', padding: 0, opacity: (!formData.content || isFetchingTitle) ? 0.5 : 1 }}>
-                                    {isFetchingTitle ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />} Fetch Title
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                                <label style={{ fontSize: '0.8rem', fontWeight: 500 }}>URL Link <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                                <button type="button" onClick={handleFetchTitle} disabled={!formData.link || isFetchingTitle} style={{ fontSize: '0.75rem', color: 'var(--accent-color)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem', padding: 0, opacity: (!formData.link || isFetchingTitle) ? 0.5 : 1 }}>
+                                    {isFetchingTitle ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />} Auto-Fill Title From URL
                                 </button>
-                            )}
+                            </div>
+                            <input type="url" className="input-field" value={formData.link} placeholder="https://youtube.com/..." onChange={e => setFormData({ ...formData, link: e.target.value })} style={{ marginBottom: 0 }} />
                         </div>
-                        {formData.type === 'CODE' ? (
-                            <textarea className="input-field" rows={isFullscreen ? "20" : "8"} placeholder="Paste your code here..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
-                        ) : formData.type === 'TEXT' ? (
-                            <textarea className="input-field" rows={isFullscreen ? "20" : "5"} placeholder="Write your notes in Markdown..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required />
-                        ) : (
-                            <input type="url" className="input-field" value={formData.content} placeholder="https://youtube.com/..." onChange={e => setFormData({ ...formData, content: e.target.value })} required />
-                        )}
+                        
+                        <div>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 500, display: 'block', marginBottom: '0.4rem' }}>Markdown Notes <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                            <textarea className="input-field" rows={isFullscreen ? "15" : "5"} placeholder="Write your notes in Markdown..." value={formData.text} onChange={e => setFormData({ ...formData, text: e.target.value })} style={{ marginBottom: 0 }} />
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 500, display: 'block', marginBottom: '0.4rem' }}>Code Snippet <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                            <textarea className="input-field" rows={isFullscreen ? "15" : "5"} placeholder="Paste your code here..." value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} style={{ fontFamily: 'monospace', fontSize: '0.85rem', marginBottom: 0 }} />
+                        </div>
                     </div>
 
                     <div className="responsive-flex" style={{ alignItems: 'flex-end', gap: '1.5rem' }}>

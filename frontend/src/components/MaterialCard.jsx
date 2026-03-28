@@ -10,8 +10,23 @@ import { Trash2, ExternalLink, FileText, Link as LinkIcon, Pencil, Code, GripVer
 const TYPE_ICON = { TEXT: FileText, LINK: LinkIcon, CODE: Code, FILE: FileText };
 
 export default function MaterialCard({ material, onEdit, onDelete, setTagFilter, currentTagFilter }) {
+    let unifiedText = material.text || '';
+    let unifiedCode = material.code || '';
+    let unifiedLink = material.link || '';
+    
+    // Legacy support: map old exclusive content to unified fields
+    if (material.type === 'TEXT' && material.content && !unifiedText) unifiedText = material.content;
+    if (material.type === 'CODE' && material.content && !unifiedCode) unifiedCode = material.content;
+    if (material.type === 'LINK' && material.content && !unifiedLink) unifiedLink = material.content;
+
     const [isInlineEditing, setIsInlineEditing] = useState(false);
-    const [editData, setEditData] = useState({ title: material.title, content: material.content, tags: material.tags?.join(', ') || '' });
+    const [editData, setEditData] = useState({ 
+        title: material.title, 
+        text: unifiedText,
+        code: unifiedCode,
+        link: unifiedLink,
+        tags: material.tags?.join(', ') || '' 
+    });
 
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: material._id });
 
@@ -24,7 +39,13 @@ export default function MaterialCard({ material, onEdit, onDelete, setTagFilter,
     };
 
     const handleSave = () => {
-        onEdit(material._id, editData);
+        onEdit(material._id, {
+            title: editData.title,
+            text: editData.text,
+            code: editData.code,
+            link: editData.link,
+            tags: editData.tags.split(',').map(t => t.trim()).filter(Boolean)
+        });
         setIsInlineEditing(false);
     };
 
@@ -42,13 +63,9 @@ export default function MaterialCard({ material, onEdit, onDelete, setTagFilter,
                         style={{ marginBottom: 0, fontWeight: 600, fontSize: '1rem' }} 
                     />
                     
-                    {material.type === 'CODE' ? (
-                        <textarea className="input-field" rows="6" value={editData.content} onChange={e => setEditData(d => ({ ...d, content: e.target.value }))} style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
-                    ) : material.type === 'TEXT' ? (
-                        <textarea className="input-field" rows="6" value={editData.content} onChange={e => setEditData(d => ({ ...d, content: e.target.value }))} />
-                    ) : (
-                        <input type="url" className="input-field" value={editData.content} onChange={e => setEditData(d => ({ ...d, content: e.target.value }))} style={{ marginBottom: 0 }} />
-                    )}
+                    <input type="url" className="input-field" placeholder="Link URL (optional)" value={editData.link} onChange={e => setEditData(d => ({ ...d, link: e.target.value }))} style={{ marginBottom: 0 }} />
+                    <textarea className="input-field" rows="4" placeholder="Markdown Notes (optional)" value={editData.text} onChange={e => setEditData(d => ({ ...d, text: e.target.value }))} style={{ marginBottom: 0 }} />
+                    <textarea className="input-field" rows="4" placeholder="Code block (optional)" value={editData.code} onChange={e => setEditData(d => ({ ...d, code: e.target.value }))} style={{ fontFamily: 'monospace', fontSize: '0.85rem', marginBottom: 0 }} />
 
                     <input 
                         className="input-field" 
@@ -59,7 +76,7 @@ export default function MaterialCard({ material, onEdit, onDelete, setTagFilter,
                     />
                     
                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                        <button className="btn btn-ghost" onClick={() => { setIsInlineEditing(false); setEditData({ title: material.title, content: material.content, tags: material.tags?.join(', ') || '' }); }}>Cancel</button>
+                        <button className="btn btn-ghost" onClick={() => { setIsInlineEditing(false); setEditData({ title: material.title, text: unifiedText, code: unifiedCode, link: unifiedLink, tags: material.tags?.join(', ') || '' }); }}>Cancel</button>
                         <button className="btn btn-primary" onClick={handleSave}>Save</button>
                     </div>
                 </div>
@@ -92,26 +109,30 @@ export default function MaterialCard({ material, onEdit, onDelete, setTagFilter,
                         </div>
                     </div>
                     
-                    {material.type === 'LINK' ? (
-                        <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-surface-hover)', width: 'fit-content', marginTop: '0.4rem' }}>
-                            <a href={material.content} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, textDecoration: 'none' }}>
+                    {unifiedLink && (
+                        <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-surface-hover)', width: 'fit-content', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                            <a href={unifiedLink} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, textDecoration: 'none' }}>
                                 <ExternalLink size={14} /> 
                                 {(() => {
-                                    try { return new URL(material.content).hostname; }
-                                    catch (e) { return material.content.substring(0, 30); }
+                                    try { return new URL(unifiedLink).hostname; }
+                                    catch (e) { return unifiedLink.substring(0, 30); }
                                 })()}
                             </a>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{material.content}</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{unifiedLink}</span>
                         </div>
-                    ) : material.type === 'CODE' ? (
-                        <div style={{ borderRadius: 'var(--radius-md)', marginTop: '0.75rem', overflow: 'hidden', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                    )}
+                    
+                    {unifiedText && (
+                        <div className="markdown-body" style={{ fontSize: '0.925rem', color: 'var(--text-primary)', lineHeight: 1.7, opacity: 0.9, marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{unifiedText}</ReactMarkdown>
+                        </div>
+                    )}
+                    
+                    {unifiedCode && (
+                        <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', fontSize: '0.85rem', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
                             <SyntaxHighlighter language="javascript" style={vscDarkPlus} customStyle={{ margin: 0, padding: '1.25rem', backgroundColor: 'var(--bg-card)' }}>
-                                {material.content}
+                                {unifiedCode}
                             </SyntaxHighlighter>
-                        </div>
-                    ) : (
-                        <div className="markdown-body" style={{ fontSize: '0.925rem', color: 'var(--text-primary)', lineHeight: 1.7, opacity: 0.9 }}>
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{material.content}</ReactMarkdown>
                         </div>
                     )}
                     
