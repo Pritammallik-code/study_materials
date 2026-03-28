@@ -66,7 +66,13 @@ function AppLayout() {
 
     // Sync activeNode with URL
     useEffect(() => {
-        if (!hierarchy || hierarchy.length === 0) return;
+        if (isLoadingHierarchy) return;
+
+        if (!hierarchy || hierarchy.length === 0) {
+            setActiveNode(null);
+            setIsInitialSync(false);
+            return;
+        }
 
         const parts = location.pathname.split('/').filter(Boolean);
         if (parts.length < 2) {
@@ -102,7 +108,7 @@ function AppLayout() {
             setActiveNode(null);
         }
         setIsInitialSync(false);
-    }, [location.pathname, hierarchy]);
+    }, [location.pathname, hierarchy, isLoadingHierarchy]);
 
     const ancestors = computeAncestors(hierarchy, activeNode);
 
