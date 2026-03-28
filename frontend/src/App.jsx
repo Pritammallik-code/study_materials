@@ -6,7 +6,7 @@ import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import AuthPage from './pages/AuthPage';
 import { getHierarchy } from './api';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogOut } from 'lucide-react';
 
 // ---- localStorage helper for recently visited ----
 const RECENTS_KEY = 'study_recents';
@@ -141,6 +141,9 @@ function AppLayout() {
                             Study App
                         </button>
                     </div>
+                    <button className="btn-ghost" onClick={handleLogout} title="Logout" style={{ padding: '0.35rem' }}>
+                        <LogOut size={18} />
+                    </button>
                 </div>
             )}
 

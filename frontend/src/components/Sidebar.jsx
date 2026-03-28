@@ -233,7 +233,14 @@ function TreeNode({ node, type, activeNode, onSelectNode, allExpanded, onDelete 
         <div>
             <div
                 className={`tree-node ${isActive ? 'active' : ''} ${type === 'TOPIC' && node.isCompleted ? 'completed' : ''}`}
-                onClick={() => onSelectNode(node, type)}
+                onClick={() => {
+                    if (String(node._id).startsWith('temp-')) return;
+                    onSelectNode(node, type);
+                }}
+                style={{ 
+                    opacity: String(node._id).startsWith('temp-') ? 0.6 : 1, 
+                    cursor: String(node._id).startsWith('temp-') ? 'wait' : 'pointer' 
+                }}
             >
                 <div className="tree-node-content">
                     {type !== 'TOPIC' ? (
