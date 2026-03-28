@@ -4,21 +4,12 @@ const materialSchema = new mongoose.Schema({
     title: { type: String, required: true, trim: true },
     type: {
         type: String,
-        enum: ['TEXT', 'LINK', 'CODE', 'FILE'],
+        enum: ['TEXT', 'LINK', 'CODE'],
         required: true
     },
     content: {
         type: String,
         required: true
-    },
-    fileName: {
-        type: String
-    },
-    fileData: { 
-        type: Buffer 
-    },
-    fileType: { 
-        type: String 
     },
     tags: { type: [String], default: [] },
     nodeId: { type: mongoose.Schema.Types.ObjectId, required: true },

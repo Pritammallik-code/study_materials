@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMaterials, createMaterial, updateMaterial, deleteMaterial } from '../api';
-import { Plus, Trash2, ExternalLink, FileText, Link as LinkIcon, Pencil, Code, ChevronUp, ChevronDown as ChevronDownIcon, X, Download } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, FileText, Link as LinkIcon, Pencil, Code, ChevronUp, ChevronDown as ChevronDownIcon, X } from 'lucide-react';
 import Breadcrumb from './Breadcrumb';
 import StatsView from './StatsView';
 import ConfirmModal from './ConfirmModal';
@@ -22,7 +22,7 @@ export default function MainContent({
     const queryClient = useQueryClient();
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
-    const [formData, setFormData] = useState({ title: '', type: 'TEXT', content: '', tags: '', file: null });
+    const [formData, setFormData] = useState({ title: '', type: 'TEXT', content: '', tags: '' });
     const [tagFilter, setTagFilter] = useState('');
     const [deletingMaterial, setDeletingMaterial] = useState(null);
 
@@ -32,11 +32,7 @@ export default function MainContent({
         enabled: !!activeNode,
     });
 
-    const getFileUrl = (id) => {
-        const token = localStorage.getItem('token');
-        const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        return `${baseUrl}/api/materials/${id}/file${token ? `?token=${token}` : ''}`;
-    };
+
 
     const addMutation = useMutation({
         mutationFn: (fd) => createMaterial(fd),
@@ -69,7 +65,7 @@ export default function MainContent({
 
     const cancelForm = () => { 
         setEditingId(null); 
-        setFormData({ title: '', type: 'TEXT', content: '', tags: '', file: null }); 
+        setFormData({ title: '', type: 'TEXT', content: '', tags: '' }); 
         setShowAddForm(false); 
     };
 
@@ -79,8 +75,7 @@ export default function MainContent({
             title: m.title, 
             type: m.type, 
             content: m.content, 
-            tags: (m.tags || []).join(', '), 
-            file: null 
+            tags: (m.tags || []).join(', ') 
         }); 
         setShowAddForm(true); 
     };
@@ -103,12 +98,7 @@ export default function MainContent({
         fd.append('tags', formData.tags);
         fd.append('nodeId', activeNode._id);
         fd.append('nodeType', activeNode.type || 'TOPIC');
-        
-        if (formData.type === 'FILE' && formData.file) {
-            fd.append('file', formData.file);
-        } else {
-            fd.append('content', formData.content);
-        }
+        fd.append('content', formData.content);
 
         if (editingId) {
             editMutation.mutate({ id: editingId, data: fd });
@@ -195,8 +185,7 @@ export default function MainContent({
                                 {[
                                     { value: 'TEXT', icon: FileText, label: 'Note' },
                                     { value: 'LINK', icon: LinkIcon, label: 'Link' },
-                                    { value: 'CODE', icon: Code, label: 'Code' },
-                                    { value: 'FILE', icon: FileText, label: 'File' }
+                                    { value: 'CODE', icon: Code, label: 'Code' }
                                 ].map(t => (
                                     <button
                                         key={t.value}
@@ -226,29 +215,16 @@ export default function MainContent({
                         </div>
                     </div>
                     
-                    {formData.type === 'FILE' ? (
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label style={labelStyle}>Target File</label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <label className="btn" style={{ background: 'var(--accent-soft)', color: 'var(--accent-color)', border: '1px dashed var(--accent-color)', cursor: 'pointer', flex: 1, padding: '1.5rem', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <Plus size={20} />
-                                    <span>{formData.file ? formData.file.name : 'Click to select PDF or Image'}</span>
-                                    <input type="file" style={{ display: 'none' }} onChange={e => setFormData({ ...formData, file: e.target.files[0] })} />
-                                </label>
-                            </div>
-                        </div>
-                    ) : (
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label style={labelStyle}>{formData.type === 'LINK' ? 'Paste URL' : 'Content Details'}</label>
-                            {formData.type === 'CODE' ? (
-                                <textarea className="input-field" rows="8" placeholder="Paste your code here..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
-                            ) : formData.type === 'TEXT' ? (
-                                <textarea className="input-field" rows="5" placeholder="Write your notes..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required />
-                            ) : (
-                                <input type="url" className="input-field" value={formData.content} placeholder="https://youtube.com/..." onChange={e => setFormData({ ...formData, content: e.target.value })} required />
-                            )}
-                        </div>
-                    )}
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={labelStyle}>{formData.type === 'LINK' ? 'Paste URL' : 'Content Details'}</label>
+                        {formData.type === 'CODE' ? (
+                            <textarea className="input-field" rows="8" placeholder="Paste your code here..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
+                        ) : formData.type === 'TEXT' ? (
+                            <textarea className="input-field" rows="5" placeholder="Write your notes..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required />
+                        ) : (
+                            <input type="url" className="input-field" value={formData.content} placeholder="https://youtube.com/..." onChange={e => setFormData({ ...formData, content: e.target.value })} required />
+                        )}
+                    </div>
 
                     <div className="responsive-flex" style={{ alignItems: 'flex-end', gap: '1.5rem' }}>
                         <div className="flex-1">
@@ -336,25 +312,6 @@ export default function MainContent({
                                     ) : material.type === 'CODE' ? (
                                         <div style={{ backgroundColor: 'var(--bg-surface-hover)', padding: '1.25rem', borderRadius: 'var(--radius-md)', marginTop: '0.75rem', overflowX: 'auto', border: '1px solid var(--border-color)', position: 'relative' }}>
                                             <pre style={{ margin: 0, fontSize: '0.85rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}><code>{material.content}</code></pre>
-                                        </div>
-                                    ) : material.type === 'FILE' ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-surface-hover)', padding: '1rem', borderRadius: 'var(--radius-md)', marginTop: '0.5rem', border: '1px solid var(--border-color)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                {material.content?.match(/\.(jpg|jpeg|png)$/i) || (material.fileType && material.fileType.startsWith('image/')) ? (
-                                                    <img src={getFileUrl(material._id)} alt={material.fileName} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-color)' }} />
-                                                ) : (
-                                                    <div style={{ width: '40px', height: '40px', borderRadius: '6px', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-color)' }}>
-                                                        <FileText size={20} />
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{material.fileName || 'Uploaded File'}</div>
-                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{(material.content?.split('.').pop() || '').toUpperCase()} File</div>
-                                                </div>
-                                            </div>
-                                            <a href={getFileUrl(material._id)} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ padding: '0.5rem', borderRadius: '50%' }}>
-                                                <Download size={18} />
-                                            </a>
                                         </div>
                                     ) : (
                                         <p style={{ fontSize: '0.925rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.7, opacity: 0.9 }}>{material.content}</p>
