@@ -18,6 +18,11 @@ const addToRecents = (node, type) => {
     const prev = getRecents().filter(r => r._id !== node._id);
     saveRecents([entry, ...prev].slice(0, MAX_RECENTS));
 };
+const removeFromRecents = (deletedIds) => {
+    if (!deletedIds || !deletedIds.length) return;
+    const prev = getRecents().filter(r => !deletedIds.includes(r._id));
+    saveRecents(prev);
+};
 
 // ---- Breadcrumb helper ----
 function computeAncestors(hierarchy, activeNode) {
@@ -113,6 +118,11 @@ function AppLayout() {
         setRecents(getRecents());
     }, [navigate]);
 
+    const handleNodeDeleted = useCallback((deletedIds) => {
+        removeFromRecents(deletedIds);
+        setRecents(getRecents());
+    }, []);
+
     const handleLogout = () => { queryClient.clear(); logout(); };
 
     // Keyboard shortcuts
@@ -155,7 +165,7 @@ function AppLayout() {
                         <X size={22} color="var(--text-primary)" />
                     </button>
                 )}
-                <Sidebar activeNode={activeNode} onSelectNode={handleNodeSelect} onLogout={handleLogout} user={user} recents={recents} />
+                <Sidebar activeNode={activeNode} onSelectNode={handleNodeSelect} onLogout={handleLogout} user={user} recents={recents} onNodeDeleted={handleNodeDeleted} />
             </div>
 
             <MainContent

@@ -468,9 +468,20 @@ export default function Sidebar({ activeNode, onSelectNode, onLogout, user, rece
             if (type === 'CHAPTER') return deleteChapter(id);
             if (type === 'TOPIC') return deleteTopic(id);
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
-            if (activeNode?._id === deletingNode?.node?._id) onSelectNode(null, null);
+            
+            if (data?.deletedIds) {
+                if (activeNode?._id && data.deletedIds.includes(activeNode._id)) {
+                    onSelectNode(null, null);
+                }
+                if (onNodeDeleted) {
+                    onNodeDeleted(data.deletedIds);
+                }
+            } else {
+                if (activeNode?._id === deletingNode?.node?._id) onSelectNode(null, null);
+            }
+            
             setDeletingNode(null);
         }
     });

@@ -1,6 +1,7 @@
 const Subject = require('../models/Subject');
 const Chapter = require('../models/Chapter');
 const Topic = require('../models/Topic');
+const Material = require('../models/Material');
 
 exports.getHierarchy = async (req, res) => {
     try {
@@ -51,8 +52,26 @@ exports.updateSubject = async (req, res) => {
 };
 exports.deleteSubject = async (req, res) => {
     try {
-        await Subject.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
-        res.json({ message: 'Subject deleted' });
+        const userId = req.user._id;
+        const subjectId = req.params.id;
+        
+        const subject = await Subject.findOne({ _id: subjectId, userId });
+        if (!subject) return res.status(404).json({ message: 'Subject not found' });
+        
+        const chapters = await Chapter.find({ subjectId, userId });
+        const chapterIds = chapters.map(c => c._id);
+        
+        const topics = await Topic.find({ chapterId: { $in: chapterIds }, userId });
+        const topicIds = topics.map(t => t._id);
+        
+        const allNodeIds = [subjectId, ...chapterIds, ...topicIds];
+        
+        await Material.deleteMany({ nodeId: { $in: allNodeIds }, userId });
+        await Topic.deleteMany({ _id: { $in: topicIds }, userId });
+        await Chapter.deleteMany({ _id: { $in: chapterIds }, userId });
+        await Subject.deleteOne({ _id: subjectId, userId });
+        
+        res.json({ message: 'Subject and all its contents deleted', deletedIds: allNodeIds });
     } catch (error) { res.status(400).json({ message: error.message }); }
 };
 
@@ -72,8 +91,22 @@ exports.updateChapter = async (req, res) => {
 };
 exports.deleteChapter = async (req, res) => {
     try {
-        await Chapter.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
-        res.json({ message: 'Chapter deleted' });
+        const userId = req.user._id;
+        const chapterId = req.params.id;
+
+        const chapter = await Chapter.findOne({ _id: chapterId, userId });
+        if (!chapter) return res.status(404).json({ message: 'Chapter not found' });
+
+        const topics = await Topic.find({ chapterId, userId });
+        const topicIds = topics.map(t => t._id);
+        
+        const allNodeIds = [chapterId, ...topicIds];
+
+        await Material.deleteMany({ nodeId: { $in: allNodeIds }, userId });
+        await Topic.deleteMany({ _id: { $in: topicIds }, userId });
+        await Chapter.deleteOne({ _id: chapterId, userId });
+
+        res.json({ message: 'Chapter and its contents deleted', deletedIds: allNodeIds });
     } catch (error) { res.status(400).json({ message: error.message }); }
 };
 
@@ -93,8 +126,16 @@ exports.updateTopic = async (req, res) => {
 };
 exports.deleteTopic = async (req, res) => {
     try {
-        await Topic.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
-        res.json({ message: 'Topic deleted' });
+        const userId = req.user._id;
+        const topicId = req.params.id;
+
+        const topic = await Topic.findOne({ _id: topicId, userId });
+        if (!topic) return res.status(404).json({ message: 'Topic not found' });
+
+        await Material.deleteMany({ nodeId: topicId, userId });
+        await Topic.deleteOne({ _id: topicId, userId });
+
+        res.json({ message: 'Topic deleted', deletedIds: [topicId] });
     } catch (error) { res.status(400).json({ message: error.message }); }
 };
 
