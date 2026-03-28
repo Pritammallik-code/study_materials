@@ -4,6 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const logger = require('./utils/logger');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { generalLimiter } = require('./middleware/rateLimiter');
 
 const authRoutes = require('./routes/auth');
 const hierarchyRoutes = require('./routes/hierarchy');
@@ -34,7 +35,11 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
+
 app.use(express.json());
+
+// Apply rate limiting to all routes
+app.use('/api/', generalLimiter);
 
 connectDB();
 

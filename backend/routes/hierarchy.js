@@ -2,23 +2,27 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/hierarchyController');
 const { protect } = require('../middleware/auth');
+const { validate, validateObjectId } = require('../middleware/validation');
 
 router.use(protect);
 
 router.get('/', controller.getHierarchy);
 
-router.post('/subjects', controller.createSubject);
-router.put('/subjects/:id', controller.updateSubject);
-router.delete('/subjects/:id', controller.deleteSubject);
+// Subject routes
+router.post('/subjects', validate('createSubject'), controller.createSubject);
+router.put('/subjects/:id', validateObjectId('id'), validate('updateSubject'), controller.updateSubject);
+router.delete('/subjects/:id', validateObjectId('id'), controller.deleteSubject);
 
-router.post('/chapters', controller.createChapter);
-router.put('/chapters/:id', controller.updateChapter);
-router.delete('/chapters/:id', controller.deleteChapter);
+// Chapter routes
+router.post('/chapters', validate('createChapter'), controller.createChapter);
+router.put('/chapters/:id', validateObjectId('id'), validate('updateChapter'), controller.updateChapter);
+router.delete('/chapters/:id', validateObjectId('id'), controller.deleteChapter);
 
-router.post('/topics', controller.createTopic);
-router.put('/topics/:id', controller.updateTopic);
-router.delete('/topics/:id', controller.deleteTopic);
-router.patch('/topics/:id/toggle-completed', controller.toggleTopicCompleted);
-router.patch('/topics/:id/toggle-pinned', controller.toggleTopicPinned);
+// Topic routes
+router.post('/topics', validate('createTopic'), controller.createTopic);
+router.put('/topics/:id', validateObjectId('id'), validate('updateTopic'), controller.updateTopic);
+router.delete('/topics/:id', validateObjectId('id'), controller.deleteTopic);
+router.patch('/topics/:id/toggle-completed', validateObjectId('id'), controller.toggleTopicCompleted);
+router.patch('/topics/:id/toggle-pinned', validateObjectId('id'), controller.toggleTopicPinned);
 
 module.exports = router;
