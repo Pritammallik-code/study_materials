@@ -18,4 +18,10 @@ const materialSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
+// Indexes for query performance
+materialSchema.index({ userId: 1, nodeId: 1, orderIndex: 1 });
+materialSchema.index({ userId: 1, tags: 1 });
+materialSchema.index({ userId: 1, title: 1 });
+materialSchema.index({ nodeId: 1, nodeType: 1 });
+
 module.exports = mongoose.model('Material', materialSchema);

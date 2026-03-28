@@ -7,4 +7,8 @@ const subjectSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
+// Indexes for query performance
+subjectSchema.index({ userId: 1, orderIndex: 1 });
+subjectSchema.index({ userId: 1, name: 1 });
+
 module.exports = mongoose.model('Subject', subjectSchema);

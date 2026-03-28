@@ -7,4 +7,9 @@ const chapterSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
+// Indexes for query performance
+chapterSchema.index({ userId: 1, subjectId: 1, orderIndex: 1 });
+chapterSchema.index({ userId: 1, name: 1 });
+chapterSchema.index({ subjectId: 1 });
+
 module.exports = mongoose.model('Chapter', chapterSchema);

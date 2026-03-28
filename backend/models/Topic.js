@@ -9,4 +9,10 @@ const topicSchema = new mongoose.Schema({
     isPinned: { type: Boolean, default: false },
 }, { timestamps: true });
 
+// Indexes for query performance
+topicSchema.index({ userId: 1, chapterId: 1, orderIndex: 1 });
+topicSchema.index({ userId: 1, name: 1 });
+topicSchema.index({ userId: 1, isPinned: 1, isCompleted: 1 });
+topicSchema.index({ chapterId: 1 });
+
 module.exports = mongoose.model('Topic', topicSchema);
