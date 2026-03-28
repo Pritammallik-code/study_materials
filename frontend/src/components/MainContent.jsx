@@ -295,7 +295,11 @@ export default function MainContent({
                                     <button
                                         key={t.value}
                                         type="button"
-                                        onClick={() => setFormData({ ...formData, type: t.value })}
+                                        onClick={() => {
+                                            if (formData.type !== t.value) {
+                                                setFormData({ ...formData, type: t.value, content: '' });
+                                            }
+                                        }}
                                         style={{ 
                                             display: 'flex', 
                                             alignItems: 'center', 
