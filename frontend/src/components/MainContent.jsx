@@ -256,18 +256,22 @@ export default function MainContent({
         e.preventDefault();
         
         if (!formData.text && !formData.code && !formData.link) {
-            alert('Please provide at least one of: Notes, Code Snippet, or a URL Link.');
+            alert('Please fill in at least one of: Notes, Code Snippet, or URL Link.');
             return;
         }
 
+        const nodeType = activeNode.type 
+            ? activeNode.type.toUpperCase() 
+            : 'TOPIC';
+
         const payload = { 
-            title: formData.title,
+            title: formData.title || 'Untitled',
             text: formData.text || '',
             code: formData.code || '',
             link: formData.link || '',
-            tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
+            tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
             nodeId: activeNode._id,
-            nodeType: activeNode.type || 'TOPIC',
+            nodeType,
         };
 
         if (editingId) {
