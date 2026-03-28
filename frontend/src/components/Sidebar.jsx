@@ -502,7 +502,7 @@ export default function Sidebar({ activeNode, onSelectNode, onLogout, user, rece
                     </div>
                     Study App
                 </button>
-                <button className="btn-ghost" onClick={onLogout} title="Logout" style={{ padding: '0.35rem' }}>
+                <button className="btn-ghost mobile-hide" onClick={onLogout} title="Logout" style={{ padding: '0.35rem' }}>
                     <LogOut size={16} />
                 </button>
             </div>

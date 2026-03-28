@@ -285,6 +285,7 @@ p { color: var(--text-secondary); line-height: 1.6; }
   .mobile-header { display: flex; }
   .main-content { padding: 1.5rem 1rem; }
   h1 { font-size: 1.5rem; }
+  .mobile-hide { display: none !important; }
 
   /* Off-canvas sidebar */
   .sidebar-container {
