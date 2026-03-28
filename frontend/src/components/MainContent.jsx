@@ -35,32 +35,127 @@ export default function MainContent({
 
 
     const addMutation = useMutation({
-        mutationFn: (fd) => createMaterial(fd),
-        onSuccess: () => { 
-            queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] }); 
-            cancelForm(); 
+        mutationFn: (data) => createMaterial(data),
+        onMutate: async (newMaterial) => {
+            await queryClient.cancelQueries({ queryKey: ['materials', activeNode._id] });
+            const previousMaterials = queryClient.getQueryData(['materials', activeNode._id]);
+            
+            // Generate a temporary ID for the optimistic item
+            const tempId = `temp-${Date.now()}`;
+            const optimisticMaterial = {
+                ...newMaterial,
+                _id: tempId,
+                tags: newMaterial.tags ? newMaterial.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+                createdAt: new Date().toISOString()
+            };
+
+            queryClient.setQueryData(['materials', activeNode._id], (old) => [...(old || []), optimisticMaterial]);
+            cancelForm();
+            return { previousMaterials };
+        },
+        onError: (err, newMaterial, context) => {
+            if (context?.previousMaterials) {
+                queryClient.setQueryData(['materials', activeNode._id], context.previousMaterials);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] });
         }
     });
 
     const editMutation = useMutation({
         mutationFn: ({ id, data }) => updateMaterial(id, data),
-        onSuccess: () => { 
-            queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] }); 
-            cancelForm(); 
+        onMutate: async ({ id, data }) => {
+            await queryClient.cancelQueries({ queryKey: ['materials', activeNode._id] });
+            const previousMaterials = queryClient.getQueryData(['materials', activeNode._id]);
+            
+            queryClient.setQueryData(['materials', activeNode._id], (old) => {
+                if (!old) return old;
+                return old.map(m => m._id === id ? { 
+                    ...m, 
+                    ...data,
+                    tags: typeof data.tags === 'string' ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : data.tags
+                } : m);
+            });
+            cancelForm();
+            return { previousMaterials };
+        },
+        onError: (err, variables, context) => {
+            if (context?.previousMaterials) {
+                queryClient.setQueryData(['materials', activeNode._id], context.previousMaterials);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] });
         }
     });
 
     const deleteMutation = useMutation({
         mutationFn: (id) => deleteMaterial(id),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] });
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['materials', activeNode._id] });
+            const previousMaterials = queryClient.getQueryData(['materials', activeNode._id]);
+            
+            queryClient.setQueryData(['materials', activeNode._id], (old) => {
+                if (!old) return old;
+                return old.filter(m => m._id !== id);
+            });
             setDeletingMaterial(null);
+            return { previousMaterials };
+        },
+        onError: (err, id, context) => {
+            if (context?.previousMaterials) {
+                queryClient.setQueryData(['materials', activeNode._id], context.previousMaterials);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] });
         }
     });
 
     const reorderMutation = useMutation({
         mutationFn: ({ id, orderIndex }) => updateMaterial(id, { orderIndex }),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] })
+        onMutate: async ({ id, orderIndex }) => {
+            await queryClient.cancelQueries({ queryKey: ['materials', activeNode._id] });
+            const previousMaterials = queryClient.getQueryData(['materials', activeNode._id]);
+
+            // Optimistically reorder in UI
+            queryClient.setQueryData(['materials', activeNode._id], (old) => {
+                if (!old) return old;
+                // Simple logic: we are either moving up (-1) or down (+1) which swaps with adjacent
+                const newMaterials = [...old];
+                const currentIndex = newMaterials.findIndex(m => m._id === id);
+                if (currentIndex === -1) return newMaterials;
+                
+                // Fine-tune the sorting based on provided new orderIndex roughly (assuming standard +1/-1 swaps)
+                // Actually since the API expects orderIndex update, just modifying the orderIndex 
+                // and sorting is safest.
+                const updatedMaterials = newMaterials.map(m => 
+                    m._id === id ? { ...m, orderIndex } : m
+                );
+                
+                // We also need to swap the adjacent item's orderIndex if we are doing a direct swap 
+                // (which moveUp and moveDown do conceptually) to make the generic update look right.
+                // It's easier: moveUp/moveDown are adjacent swaps. 
+                const originalOrder = newMaterials[currentIndex].orderIndex;
+                const otherIndex = newMaterials.findIndex(m => m._id !== id && m.orderIndex === orderIndex);
+                if (otherIndex !== -1) {
+                    updatedMaterials[otherIndex] = { ...updatedMaterials[otherIndex], orderIndex: originalOrder };
+                }
+
+                return updatedMaterials.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+            });
+
+            return { previousMaterials };
+        },
+        onError: (err, variables, context) => {
+            if (context?.previousMaterials) {
+                queryClient.setQueryData(['materials', activeNode._id], context.previousMaterials);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['materials', activeNode._id] });
+        }
     });
 
     const cancelForm = () => { 
@@ -82,28 +177,38 @@ export default function MainContent({
 
     const moveUp = (i) => { 
         if (i === 0) return; 
-        reorderMutation.mutate({ id: materials[i]._id, orderIndex: materials[i - 1].orderIndex - 1 }); 
+        const currentOrder = materials[i].orderIndex || i;
+        const prevOrder = materials[i - 1].orderIndex || (i - 1);
+        reorderMutation.mutate({ id: materials[i]._id, orderIndex: prevOrder }); 
+        reorderMutation.mutate({ id: materials[i - 1]._id, orderIndex: currentOrder });
     };
 
     const moveDown = (i) => { 
         if (i === materials.length - 1) return; 
-        reorderMutation.mutate({ id: materials[i]._id, orderIndex: materials[i + 1].orderIndex + 1 }); 
+        const currentOrder = materials[i].orderIndex || i;
+        const nextOrder = materials[i + 1].orderIndex || (i + 1);
+        reorderMutation.mutate({ id: materials[i]._id, orderIndex: nextOrder }); 
+        reorderMutation.mutate({ id: materials[i + 1]._id, orderIndex: currentOrder });
     };
 
     const handleFormSubmit = (e) => {
         e.preventDefault();
-        const fd = new FormData();
-        fd.append('title', formData.title);
-        fd.append('type', formData.type);
-        fd.append('tags', formData.tags);
-        fd.append('nodeId', activeNode._id);
-        fd.append('nodeType', activeNode.type || 'TOPIC');
-        fd.append('content', formData.content);
+        
+        // Use a JSON object instead of FormData
+        const data = {
+            title: formData.title,
+            type: formData.type,
+            // Only split if tags is a string, preventing errors if it's already an array somehow
+            tags: typeof formData.tags === 'string' ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+            nodeId: activeNode._id,
+            nodeType: activeNode.type || 'TOPIC',
+            content: formData.content
+        };
 
         if (editingId) {
-            editMutation.mutate({ id: editingId, data: fd });
+            editMutation.mutate({ id: editingId, data });
         } else {
-            addMutation.mutate(fd);
+            addMutation.mutate(data);
         }
     };
 

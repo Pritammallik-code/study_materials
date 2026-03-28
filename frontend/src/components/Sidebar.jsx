@@ -33,7 +33,22 @@ function TreeNode({ node, type, activeNode, onSelectNode, allExpanded, onDelete 
 
     const updateMutation = useMutation({
         mutationFn: updateMutationFn,
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['hierarchy'] }); setEditing(false); }
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                if (!old) return old;
+                if (type === 'SUBJECT') return old.map(s => s._id === node._id ? { ...s, name: editName } : s);
+                if (type === 'CHAPTER') return old.map(s => ({ ...s, chapters: s.chapters?.map(c => c._id === node._id ? { ...c, name: editName } : c) }));
+                if (type === 'TOPIC') return old.map(s => ({ ...s, chapters: s.chapters?.map(c => ({ ...c, topics: c.topics?.map(t => t._id === node._id ? { ...t, name: editName } : t) })) }));
+                return old;
+            });
+            setEditing(false);
+            return { previousHierarchy };
+        },
+        onError: (err, vars, context) => { if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy); },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     const addMutation = useMutation({
@@ -41,7 +56,31 @@ function TreeNode({ node, type, activeNode, onSelectNode, allExpanded, onDelete 
             if (type === 'SUBJECT') return createChapter({ name, subjectId: node._id });
             if (type === 'CHAPTER') return createTopic({ name, chapterId: node._id });
         },
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['hierarchy'] }); setNewName(''); setShowAddForm(false); }
+        onMutate: async (name) => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                if (!old) return old;
+                const tempId = `temp-${Date.now()}`;
+                
+                if (type === 'SUBJECT') {
+                    return old.map(s => s._id === node._id ? { ...s, chapters: [...(s.chapters || []), { _id: tempId, name, topics: [] }] } : s);
+                }
+                if (type === 'CHAPTER') {
+                    return old.map(s => ({
+                        ...s,
+                        chapters: s.chapters?.map(c => c._id === node._id ? { ...c, topics: [...(c.topics || []), { _id: tempId, name, isCompleted: false, isPinned: false }] } : c)
+                    }));
+                }
+                return old;
+            });
+            setNewName('');
+            setShowAddForm(false);
+            return { previousHierarchy };
+        },
+        onError: (err, vars, context) => { if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy); },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     const deleteMutation = useMutation({
@@ -50,20 +89,64 @@ function TreeNode({ node, type, activeNode, onSelectNode, allExpanded, onDelete 
             if (type === 'CHAPTER') return deleteChapter(node._id);
             if (type === 'TOPIC') return deleteTopic(node._id);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                if (!old) return old;
+                if (type === 'SUBJECT') return old.filter(s => s._id !== node._id);
+                if (type === 'CHAPTER') return old.map(s => ({ ...s, chapters: s.chapters?.filter(c => c._id !== node._id) }));
+                if (type === 'TOPIC') return old.map(s => ({ ...s, chapters: s.chapters?.map(c => ({ ...c, topics: c.topics?.filter(t => t._id !== node._id) })) }));
+                return old;
+            });
             if (activeNode?._id === node._id) onSelectNode(null, null);
-        }
+            return { previousHierarchy };
+        },
+        onError: (err, vars, context) => { if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy); },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     const toggleCompletedMutation = useMutation({
         mutationFn: () => toggleTopicCompleted(node._id),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                if (!old) return old;
+                return old.map(s => ({
+                    ...s,
+                    chapters: s.chapters?.map(c => ({
+                        ...c,
+                        topics: c.topics?.map(t => t._id === node._id ? { ...t, isCompleted: !t.isCompleted } : t)
+                    }))
+                }));
+            });
+            return { previousHierarchy };
+        },
+        onError: (err, vars, context) => { if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy); },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     const togglePinnedMutation = useMutation({
         mutationFn: () => toggleTopicPinned(node._id),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                if (!old) return old;
+                return old.map(s => ({
+                    ...s,
+                    chapters: s.chapters?.map(c => ({
+                        ...c,
+                        topics: c.topics?.map(t => t._id === node._id ? { ...t, isPinned: !t.isPinned } : t)
+                    }))
+                }));
+            });
+            return { previousHierarchy };
+        },
+        onError: (err, vars, context) => { if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy); },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     const handleAdd = (e) => { e.preventDefault(); if (newName.trim()) addMutation.mutate(newName); };
@@ -80,7 +163,57 @@ function TreeNode({ node, type, activeNode, onSelectNode, allExpanded, onDelete 
             if (type === 'CHAPTER') return updateChapter(node._id, { subjectId: parentId });
             if (type === 'TOPIC') return updateTopic(node._id, { chapterId: parentId });
         },
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['hierarchy'] }); setShowMove(false); }
+        onMutate: async (parentId) => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                if (!old) return old;
+                const newHierarchy = JSON.parse(JSON.stringify(old)); // Deep clone is easiest for moving
+                
+                if (type === 'CHAPTER') {
+                    let targetChapter = null;
+                    // Remove from old location
+                    newHierarchy.forEach(s => {
+                        const idx = s.chapters?.findIndex(c => c._id === node._id);
+                        if (idx > -1) {
+                            targetChapter = s.chapters.splice(idx, 1)[0];
+                        }
+                    });
+                    // Add to new
+                    if (targetChapter) {
+                        const targetSubject = newHierarchy.find(s => s._id === parentId);
+                        if (targetSubject) {
+                            if (!targetSubject.chapters) targetSubject.chapters = [];
+                            targetSubject.chapters.push(targetChapter);
+                        }
+                    }
+                } else if (type === 'TOPIC') {
+                    let targetTopic = null;
+                    // Remove from old
+                    newHierarchy.forEach(s => s.chapters?.forEach(c => {
+                        const idx = c.topics?.findIndex(t => t._id === node._id);
+                        if (idx > -1) {
+                            targetTopic = c.topics.splice(idx, 1)[0];
+                        }
+                    }));
+                    // Add to new
+                    if (targetTopic) {
+                        newHierarchy.forEach(s => s.chapters?.forEach(c => {
+                            if (c._id === parentId) {
+                                if (!c.topics) c.topics = [];
+                                c.topics.push(targetTopic);
+                            }
+                        }));
+                    }
+                }
+                return newHierarchy;
+            });
+            setShowMove(false);
+            return { previousHierarchy };
+        },
+        onError: (err, vars, context) => { if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy); },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     // Possible move targets
@@ -222,7 +355,22 @@ function RootSection({ hierarchy, allExpanded, activeNode, onSelectNode }) {
 
     const addMutation = useMutation({
         mutationFn: (name) => createSubject({ name }),
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['hierarchy'] }); setNewName(''); setShowAddForm(false); }
+        onMutate: async (name) => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                const tempId = `temp-${Date.now()}`;
+                return [...(old || []), { _id: tempId, name, chapters: [] }];
+            });
+            setNewName('');
+            setShowAddForm(false);
+            return { previousHierarchy };
+        },
+        onError: (err, newName, context) => {
+            if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy);
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     const handleAdd = (e) => { e.preventDefault(); if (newName.trim()) addMutation.mutate(newName); };
@@ -485,7 +633,22 @@ function RootAddButton({ hierarchy, allExpanded, activeNode, onSelectNode, showA
 
     const addMutation = useMutation({
         mutationFn: (name) => createSubject({ name }),
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['hierarchy'] }); setNewName(''); setShowAddForm(false); }
+        onMutate: async (name) => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                const tempId = `temp-${Date.now()}`;
+                return [...(old || []), { _id: tempId, name, chapters: [] }];
+            });
+            setNewName('');
+            setShowAddForm(false);
+            return { previousHierarchy };
+        },
+        onError: (err, newName, context) => {
+            if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy);
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
     });
 
     const handleAdd = (e) => { e.preventDefault(); if (newName.trim()) addMutation.mutate(newName); };
