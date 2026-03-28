@@ -381,7 +381,6 @@ export default function MainContent({
                     </div>
                     
                     <div style={{ marginBottom: '1.5rem' }}>
-                    <div style={{ marginBottom: '1.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 500 }}>{formData.type === 'LINK' ? 'Paste URL' : 'Content Details'}</label>
                             {formData.type === 'LINK' && (
