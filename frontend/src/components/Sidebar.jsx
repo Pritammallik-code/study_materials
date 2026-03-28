@@ -468,7 +468,23 @@ export default function Sidebar({ activeNode, onSelectNode, onLogout, user, rece
             if (type === 'CHAPTER') return deleteChapter(id);
             if (type === 'TOPIC') return deleteTopic(id);
         },
-        onSuccess: (data) => {
+        onMutate: async ({ id, type }) => {
+            await queryClient.cancelQueries({ queryKey: ['hierarchy'] });
+            const previousHierarchy = queryClient.getQueryData(['hierarchy']);
+            
+            queryClient.setQueryData(['hierarchy'], (old) => {
+                if (!old) return old;
+                if (type === 'SUBJECT') return old.filter(s => s._id !== id);
+                if (type === 'CHAPTER') return old.map(s => ({ ...s, chapters: s.chapters?.filter(c => c._id !== id) }));
+                if (type === 'TOPIC') return old.map(s => ({ ...s, chapters: s.chapters?.map(c => ({ ...c, topics: c.topics?.filter(t => t._id !== id) })) }));
+                return old;
+            });
+            return { previousHierarchy, id };
+        },
+        onError: (err, vars, context) => {
+            if (context?.previousHierarchy) queryClient.setQueryData(['hierarchy'], context.previousHierarchy);
+        },
+        onSuccess: (data, variables) => {
             queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
             
             if (data?.deletedIds) {
@@ -479,10 +495,8 @@ export default function Sidebar({ activeNode, onSelectNode, onLogout, user, rece
                     onNodeDeleted(data.deletedIds);
                 }
             } else {
-                if (activeNode?._id === deletingNode?.node?._id) onSelectNode(null, null);
+                if (activeNode?._id === variables.id) onSelectNode(null, null);
             }
-            
-            setDeletingNode(null);
         }
     });
 
@@ -627,7 +641,10 @@ export default function Sidebar({ activeNode, onSelectNode, onLogout, user, rece
             <ConfirmModal
                 isOpen={!!deletingNode}
                 onClose={() => setDeletingNode(null)}
-                onConfirm={() => deleteMutation.mutate({ id: deletingNode.node._id, type: deletingNode.type })}
+                onConfirm={() => {
+                    deleteMutation.mutate({ id: deletingNode.node._id, type: deletingNode.type });
+                    setDeletingNode(null);
+                }}
                 title={`Delete ${deletingNode?.type?.toLowerCase()}?`}
                 message={`Are you sure you want to delete "${deletingNode?.node?.name}"? All nested data will be lost.`}
             />
