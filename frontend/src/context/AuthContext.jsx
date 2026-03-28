@@ -21,14 +21,16 @@ export function AuthProvider({ children }) {
         setUser(userObj);
     };
 
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
     const login = async (email, password) => {
-        const { data } = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+        const { data } = await axios.post(`${apiUrl}/auth/login`, { email, password });
         _setAuth(data);
         return data;
     };
 
     const register = async (name, email, password) => {
-        const { data } = await axios.post('http://localhost:5000/api/auth/register', { name, email, password });
+        const { data } = await axios.post(`${apiUrl}/auth/register`, { name, email, password });
         _setAuth(data);
         return data;
     };
