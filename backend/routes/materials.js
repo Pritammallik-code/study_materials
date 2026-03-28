@@ -7,6 +7,7 @@ router.use(protect);
 
 router.get('/node/:nodeId', controller.getMaterialsByNode);
 router.post('/', controller.createMaterial);
+router.get('/fetch-title', controller.fetchUrlMetadata);
 router.put('/:id', controller.updateMaterial);
 router.delete('/:id', controller.deleteMaterial);
 

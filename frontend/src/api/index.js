@@ -26,6 +26,7 @@ export const toggleTopicPinned = (id) => api.patch(`/hierarchy/topics/${id}/togg
 
 // Materials
 export const getMaterials = (nodeId, tag) => api.get(`/materials/node/${nodeId}${tag ? `?tag=${tag}` : ''}`).then(r => r.data);
+export const fetchUrlTitle = (url) => api.get(`/materials/fetch-title?url=${encodeURIComponent(url)}`).then(r => r.data);
 export const createMaterial = (data) => api.post('/materials', data).then(r => r.data);
 export const updateMaterial = (id, data) => api.put(`/materials/${id}`, data).then(r => r.data);
 export const deleteMaterial = (id) => api.delete(`/materials/${id}`).then(r => r.data);

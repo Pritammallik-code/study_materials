@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getMaterials, createMaterial, updateMaterial, deleteMaterial } from '../api';
-import { Plus, Trash2, ExternalLink, FileText, Link as LinkIcon, Pencil, Code, ChevronUp, ChevronDown as ChevronDownIcon, X } from 'lucide-react';
+import { getMaterials, createMaterial, updateMaterial, deleteMaterial, fetchUrlTitle } from '../api';
+import { Plus, Trash2, ExternalLink, FileText, Link as LinkIcon, Pencil, Code, ChevronUp, ChevronDown as ChevronDownIcon, X, Maximize2, Minimize2, Loader2, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Breadcrumb from './Breadcrumb';
 import StatsView from './StatsView';
 import ConfirmModal from './ConfirmModal';
+
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import MaterialCard from './MaterialCard';
 
 const TYPE_ICON = { TEXT: FileText, LINK: LinkIcon, CODE: Code, FILE: FileText };
 const labelStyle = { display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 500 };
@@ -25,6 +33,27 @@ export default function MainContent({
     const [formData, setFormData] = useState({ title: '', type: 'TEXT', content: '', tags: '' });
     const [tagFilter, setTagFilter] = useState('');
     const [deletingMaterial, setDeletingMaterial] = useState(null);
+    const [isFetchingTitle, setIsFetchingTitle] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const handleFetchTitle = async () => {
+        if (!formData.content || formData.type !== 'LINK') return;
+        setIsFetchingTitle(true);
+        try {
+            const data = await fetchUrlTitle(formData.content);
+            if (data.title) {
+                setFormData(prev => ({ ...prev, title: data.title }));
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        setIsFetchingTitle(false);
+    };
 
     const { data: materials = [], isLoading } = useQuery({
         queryKey: ['materials', activeNode?._id],
@@ -191,6 +220,28 @@ export default function MainContent({
         reorderMutation.mutate({ id: materials[i + 1]._id, orderIndex: currentOrder });
     };
 
+    const handleDragEnd = (event) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const activeIndex = materials.findIndex(m => m._id === active.id);
+        const overIndex = materials.findIndex(m => m._id === over.id);
+        
+        const newMaterials = arrayMove(materials, activeIndex, overIndex);
+        
+        // We optimistically update the state so Drag & Drop feels instant, 
+        // bypassing the complex original reorderMutation logic which does direct swaps.
+        queryClient.setQueryData(['materials', activeNode._id], newMaterials.map((m, i) => ({ ...m, orderIndex: i })));
+
+        // Send all updates lazily to network
+        const changed = newMaterials.filter((m, i) => m.orderIndex !== i);
+        // We just reuse the editMutation to silently update orderIndex sequentially
+        changed.forEach((m) => {
+            const newIndex = newMaterials.findIndex(nm => nm._id === m._id);
+            updateMaterial(m._id, { orderIndex: newIndex }).catch(console.error);
+        });
+    };
+
     const handleFormSubmit = (e) => {
         e.preventDefault();
         
@@ -267,10 +318,15 @@ export default function MainContent({
             </div>
 
             {showAddForm && (
-                <form onSubmit={handleFormSubmit} className="card" style={{ marginBottom: '2.5rem', border: '1px solid var(--accent-soft)', background: 'var(--bg-card)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{editingId ? 'Edit Material' : 'New Material'}</h3>
-                        <button type="button" onClick={cancelForm} className="btn-ghost" style={{ padding: '0.25rem' }}><X size={18} /></button>
+                <form onSubmit={handleFormSubmit} className="card" style={{ background: 'var(--bg-surface)', padding: isFullscreen ? '2rem 3rem' : '1.5rem', borderRadius: isFullscreen ? 0 : 'var(--radius-lg)', border: isFullscreen ? 'none' : '1px solid var(--border-color)', marginBottom: '2rem', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', position: isFullscreen ? 'fixed' : 'relative', top: isFullscreen ? 0 : 'auto', left: isFullscreen ? 0 : 'auto', right: isFullscreen ? 0 : 'auto', bottom: isFullscreen ? 0 : 'auto', zIndex: isFullscreen ? 1000 : 1, overflowY: isFullscreen ? 'auto' : 'visible' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>{editingId ? 'Edit Material' : 'Add Material'}</h3>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="btn-ghost" onClick={() => setIsFullscreen(!isFullscreen)} title="Toggle Fullscreen" style={{ padding: '0.4rem' }}>
+                                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                            </button>
+                            {!editingId && <button className="btn-ghost" onClick={cancelForm} style={{ padding: '0.4rem' }}><X size={16} /></button>}
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -325,11 +381,19 @@ export default function MainContent({
                     </div>
                     
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={labelStyle}>{formData.type === 'LINK' ? 'Paste URL' : 'Content Details'}</label>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 500 }}>{formData.type === 'LINK' ? 'Paste URL' : 'Content Details'}</label>
+                            {formData.type === 'LINK' && (
+                                <button type="button" onClick={handleFetchTitle} disabled={!formData.content || isFetchingTitle} style={{ fontSize: '0.75rem', color: 'var(--accent-color)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem', padding: 0, opacity: (!formData.content || isFetchingTitle) ? 0.5 : 1 }}>
+                                    {isFetchingTitle ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />} Fetch Title
+                                </button>
+                            )}
+                        </div>
                         {formData.type === 'CODE' ? (
-                            <textarea className="input-field" rows="8" placeholder="Paste your code here..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
+                            <textarea className="input-field" rows={isFullscreen ? "20" : "8"} placeholder="Paste your code here..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
                         ) : formData.type === 'TEXT' ? (
-                            <textarea className="input-field" rows="5" placeholder="Write your notes..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required />
+                            <textarea className="input-field" rows={isFullscreen ? "20" : "5"} placeholder="Write your notes in Markdown..." value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })} required />
                         ) : (
                             <input type="url" className="input-field" value={formData.content} placeholder="https://youtube.com/..." onChange={e => setFormData({ ...formData, content: e.target.value })} required />
                         )}
@@ -394,51 +458,22 @@ export default function MainContent({
                     <p style={{ fontSize: '0.9rem' }}>{tagFilter ? `No materials tagged "${tagFilter}".` : "No materials yet. Click 'Add' to get started."}</p>
                 </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {filteredMaterials.map((material, index) => {
-                        const Icon = TYPE_ICON[material.type] || FileText;
-                        return (
-                            <div key={material._id} className="card" style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, paddingTop: '0.2rem', flexShrink: 0 }}>
-                                    <button className="btn-ghost" onClick={() => moveUp(index)} disabled={index === 0} style={{ padding: '0.1rem', opacity: index === 0 ? 0.2 : 0.5 }}><ChevronUp size={13} /></button>
-                                    <button className="btn-ghost" onClick={() => moveDown(index)} disabled={index === materials.length - 1} style={{ padding: '0.1rem', opacity: index === materials.length - 1 ? 0.2 : 0.5 }}><ChevronDownIcon size={13} /></button>
-                                </div>
-                                <div style={{ padding: '0.6rem', borderRadius: '50%', background: 'var(--bg-surface-hover)', color: 'var(--text-primary)' }}>
-                                    <Icon size={18} />
-                                </div>
-                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem', gap: '0.5rem' }}>
-                                        <span style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{material.title}</span>
-                                        <div style={{ display: 'flex', gap: '0.2rem', flexShrink: 0 }}>
-                                            <button className="btn-ghost" onClick={() => startEdit(material)} style={{ padding: '0.2rem' }}><Pencil size={12} /></button>
-                                            <button className="btn-ghost" onClick={() => setDeletingMaterial(material)} style={{ padding: '0.2rem' }}><Trash2 size={12} /></button>
-                                        </div>
-                                    </div>
-                                    {material.type === 'LINK' ? (
-                                        <a href={material.content} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 500, background: 'var(--accent-soft)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', width: 'fit-content' }}>
-                                            {material.content} <ExternalLink size={14} />
-                                        </a>
-                                    ) : material.type === 'CODE' ? (
-                                        <div style={{ backgroundColor: 'var(--bg-surface-hover)', padding: '1.25rem', borderRadius: 'var(--radius-md)', marginTop: '0.75rem', overflowX: 'auto', border: '1px solid var(--border-color)', position: 'relative' }}>
-                                            <pre style={{ margin: 0, fontSize: '0.85rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}><code>{material.content}</code></pre>
-                                        </div>
-                                    ) : (
-                                        <p style={{ fontSize: '0.925rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.7, opacity: 0.9 }}>{material.content}</p>
-                                    )}
-                                    {material.tags?.length > 0 && (
-                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-                                            {material.tags.map(tag => (
-                                                <span key={tag} onClick={() => setTagFilter(tag === tagFilter ? '' : tag)} style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '6px', background: 'var(--accent-soft)', color: 'var(--accent-color)', fontWeight: 600, cursor: 'pointer', transition: 'var(--transition)' }}>
-                                                    #{tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={filteredMaterials.map(m => m._id)} strategy={verticalListSortingStrategy}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {filteredMaterials.map((material) => (
+                                <MaterialCard 
+                                    key={material._id} 
+                                    material={material} 
+                                    onEdit={(id, data) => editMutation.mutate({ id, data })}
+                                    onDelete={setDeletingMaterial}
+                                    setTagFilter={setTagFilter}
+                                    currentTagFilter={tagFilter}
+                                />
+                            ))}
+                        </div>
+                    </SortableContext>
+                </DndContext>
             )}
 
             <ConfirmModal
