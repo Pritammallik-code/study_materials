@@ -45,7 +45,7 @@ export default function MainContent({
             const optimisticMaterial = {
                 ...newMaterial,
                 _id: tempId,
-                tags: newMaterial.tags ? newMaterial.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+                tags: newMaterial.tags || [],
                 createdAt: new Date().toISOString()
             };
 
