@@ -9,7 +9,7 @@ A high-end, maintenance-free knowledge base designed for focused learning. This 
 - 🔗 **Deep-Link Persistent Navigation**: URL-based routing ensures you stay on the same subject or topic even after a page refresh.
 - 🔎 **Global Power Search**: Instant search across all subjects, chapters, and topics.
 - 🔳 **Segmented Selectors**: Sleek, horizontal creation form for rapid material management.
-- 🛡️ **Secure Media Streaming**: Authenticated file streaming with token-based URL validation.
+- 🛡️ **Secure Media Streaming**: Authenticated file streaming with token based URL validation.
 
 ## 🛠️ Tech Stack
 
