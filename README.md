@@ -14,7 +14,7 @@ A high-end, maintenance-free knowledge base designed for focused learning. This 
 ## 🛠️ Tech Stack
 
 - **Frontend**: React (Vite), React Query, Axios, Lucide Icons.
-- **Backend**: Node.js, Express, MongoDB (Mongoose), JWT, Multer (Memory Storage).
+- **Backend**: Node.js, Express, MongoDB, JWT, Multer (Memory Storage).
 
 ## 🚀 Getting Started
 
